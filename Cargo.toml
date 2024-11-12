@@ -1,0 +1,28 @@
+[package]
+name = "netlink_adapter"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+crate-type = [
+    "staticlib",
+    "cdylib",
+    "lib",
+]
+
+[dependencies]
+netlink_core = { git = "https://github.com/rustp2p/netlink" }
+
+robusta_jni = { version = "0.2", optional = true }
+combine = { version = "4.6", optional = true }
+
+libc = "0.2"
+tokio = "1.41"
+anyhow = "1.0"
+log = "0.4"
+
+[features]
+default = ["c_bindings", "java_bindings"]
+c_bindings = []
+java_bindings = ["robusta_jni", "combine"]
