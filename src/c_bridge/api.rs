@@ -1,30 +1,15 @@
 use std::ffi::CString;
-use std::sync::{Arc, OnceLock};
-use std::thread;
 
 use crate::c_bridge::entity::{
     to_c_group_list, to_c_network_info, to_c_route_list, CGroupItemVec, CNetworkNatInfo,
     CRouteItemVec,
 };
 use crate::c_bridge::{to_config, CConfig};
+use crate::RUNTIME;
 use netlink_core::api::NetLinkCoreApi;
-use tokio::runtime::Runtime;
-static RUNTIME: OnceLock<Arc<Runtime>> = OnceLock::new();
-
 #[no_mangle]
 pub extern "C" fn initialize_async_runtime() {
-    RUNTIME.get_or_init(|| {
-        let rt = Arc::new(Runtime::new().expect("Failed to create Tokio runtime"));
-        let rt1 = rt.clone();
-        thread::spawn(move || {
-            rt1.block_on(async {
-                loop {
-                    tokio::time::sleep(std::time::Duration::from_secs(u64::MAX)).await;
-                }
-            });
-        });
-        rt
-    });
+    crate::initialize_async_runtime();
 }
 
 #[no_mangle]

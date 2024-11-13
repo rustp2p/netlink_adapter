@@ -6,7 +6,7 @@ use netlink_core::api::entity::{GroupItem, NetworkNatInfo, RouteItem};
 
 #[repr(C)]
 pub struct CRouteItem {
-    pub node_id: *mut c_char,
+    pub node_id: c_uint,
     pub next_hop: *mut c_char,
     pub protocol: *mut c_char,
     pub metric: c_uchar,
@@ -22,9 +22,6 @@ pub struct CRouteItemVec {
 impl Drop for CRouteItem {
     fn drop(&mut self) {
         unsafe {
-            if !self.node_id.is_null() {
-                free(self.node_id as *mut libc::c_void);
-            }
             if !self.next_hop.is_null() {
                 free(self.next_hop as *mut libc::c_void);
             }
@@ -66,9 +63,7 @@ pub(crate) fn to_c_route_list(list: Vec<RouteItem>) -> CRouteItemVec {
     let mut route_items = Vec::with_capacity(list.len());
     for route in list {
         let c = CRouteItem {
-            node_id: CString::new(route.node_id)
-                .expect("CString::new failed")
-                .into_raw(),
+            node_id: route.node_id.into(),
             next_hop: CString::new(route.next_hop)
                 .expect("CString::new failed")
                 .into_raw(),
