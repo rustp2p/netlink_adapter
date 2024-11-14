@@ -13,8 +13,8 @@ pub extern "C" fn initialize_async_runtime() {
 }
 
 #[no_mangle]
-pub extern "C" fn create_netlink_api(config: *mut CConfig) -> *mut NetLinkCoreApi {
-    let config = match unsafe { to_config(&Box::from_raw(config)) } {
+pub extern "C" fn create_netlink_api(config: *const CConfig) -> *mut NetLinkCoreApi {
+    let config = match unsafe { to_config(&*config) } {
         Ok(config) => config,
         Err(e) => {
             log::warn!("create_api to_config {e:?}");

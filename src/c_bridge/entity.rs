@@ -1,6 +1,6 @@
 use std::ffi::CString;
 
-use libc::{c_char, c_uchar, c_uint, c_ushort, free};
+use libc::{c_char, c_uchar, c_uint, c_ushort};
 
 use netlink_core::api::entity::{GroupItem, NetworkNatInfo, RouteItem};
 
@@ -23,13 +23,13 @@ impl Drop for CRouteItem {
     fn drop(&mut self) {
         unsafe {
             if !self.next_hop.is_null() {
-                free(self.next_hop as *mut libc::c_void);
+                _ = CString::from_raw(self.next_hop);
             }
             if !self.protocol.is_null() {
-                free(self.protocol as *mut libc::c_void);
+                _ = CString::from_raw(self.protocol);
             }
             if !self.interface.is_null() {
-                free(self.interface as *mut libc::c_void);
+                _ = CString::from_raw(self.interface);
             }
         }
     }
@@ -38,16 +38,10 @@ impl Drop for CRouteItemVec {
     fn drop(&mut self) {
         unsafe {
             if !self.ptr.is_null() {
-                // First, free each CRouteItem element.
-                for i in 0..self.length {
-                    let item = self.ptr.offset(i as isize);
-                    if !item.is_null() {
-                        // Drop the individual CRouteItem (which frees its memory).
-                        drop(Box::from_raw(item)); // Box::from_raw will drop the struct and free the memory.
-                    }
-                }
-                // Finally, free the array of CRouteItem itself.
-                free(self.ptr as *mut libc::c_void);
+                _ = Box::from_raw(std::ptr::slice_from_raw_parts_mut(
+                    self.ptr,
+                    self.length as usize,
+                ));
             }
         }
     }
@@ -100,7 +94,7 @@ impl Drop for CGroupItem {
     fn drop(&mut self) {
         unsafe {
             if !self.group_code.is_null() {
-                free(self.group_code as *mut libc::c_void);
+                _ = CString::from_raw(self.group_code)
             }
         }
     }
@@ -109,16 +103,10 @@ impl Drop for CGroupItemVec {
     fn drop(&mut self) {
         unsafe {
             if !self.ptr.is_null() {
-                // First, free each CGroupItem element.
-                for i in 0..self.length {
-                    let item = self.ptr.offset(i as isize);
-                    if !item.is_null() {
-                        // Drop the individual CGroupItem (which will free the group_code memory).
-                        drop(Box::from_raw(item)); // Box::from_raw will drop the struct and free the memory.
-                    }
-                }
-                // Finally, free the array of CGroupItem itself.
-                free(self.ptr as *mut libc::c_void);
+                _ = Box::from_raw(std::ptr::slice_from_raw_parts_mut(
+                    self.ptr,
+                    self.length as usize,
+                ));
             }
         }
     }
@@ -150,11 +138,11 @@ pub extern "C" fn drop_CGroupItemVec(list: *mut CGroupItemVec) {
 
 #[repr(C)]
 pub struct CNetworkNatInfo {
-    node_ip: *mut c_char,
-    local_ipv4: *mut c_char,
+    node_ip: c_uint,
+    local_ipv4: c_uint,
     ipv6: *mut c_char,
     nat_type: *mut c_char,
-    public_ips: *mut *mut c_char,
+    public_ips: *mut c_uint,
     public_ips_len: c_uint,
     public_udp_ports: *mut c_ushort,
     public_udp_ports_len: c_uint,
@@ -167,38 +155,36 @@ impl Drop for CNetworkNatInfo {
     fn drop(&mut self) {
         unsafe {
             // Free the individual strings
-            if !self.node_ip.is_null() {
-                free(self.node_ip as *mut libc::c_void);
-            }
-            if !self.local_ipv4.is_null() {
-                free(self.local_ipv4 as *mut libc::c_void);
-            }
+
             if !self.ipv6.is_null() {
-                free(self.ipv6 as *mut libc::c_void);
+                _ = CString::from_raw(self.ipv6)
             }
             if !self.nat_type.is_null() {
-                free(self.nat_type as *mut libc::c_void);
+                _ = CString::from_raw(self.nat_type)
             }
 
             // Free the array of public_ips
             if !self.public_ips.is_null() {
-                for i in 0..self.public_ips_len {
-                    let ip = self.public_ips.offset(i as isize);
-                    if !ip.is_null() {
-                        free(*ip as *mut libc::c_void);
-                    }
-                }
-                free(self.public_ips as *mut libc::c_void);
+                _ = Box::from_raw(std::ptr::slice_from_raw_parts_mut(
+                    self.public_ips,
+                    self.public_ips_len as usize,
+                ));
             }
 
             // Free the array of public_udp_ports
             if !self.public_udp_ports.is_null() {
-                free(self.public_udp_ports as *mut libc::c_void);
+                _ = Box::from_raw(std::ptr::slice_from_raw_parts_mut(
+                    self.public_udp_ports,
+                    self.public_udp_ports_len as usize,
+                ));
             }
 
             // Free the array of local_udp_ports
             if !self.local_udp_ports.is_null() {
-                free(self.local_udp_ports as *mut libc::c_void);
+                _ = Box::from_raw(std::ptr::slice_from_raw_parts_mut(
+                    self.local_udp_ports,
+                    self.local_udp_ports_len as usize,
+                ));
             }
         }
     }
@@ -219,11 +205,7 @@ pub(crate) fn to_c_network_info(info: NetworkNatInfo) -> CNetworkNatInfo {
     } else {
         std::ptr::null_mut()
     };
-    let public_ips_c: Vec<*mut c_char> = info
-        .public_ips
-        .into_iter()
-        .map(|s| CString::new(s.to_string()).unwrap().into_raw())
-        .collect();
+    let public_ips_c: Vec<c_uint> = info.public_ips.into_iter().map(|s| u32::from(s)).collect();
     let public_ips = public_ips_c.into_boxed_slice();
     let public_ips_len = public_ips.len() as _;
     let public_udp_ports = info.public_udp_ports.into_boxed_slice();
@@ -231,12 +213,8 @@ pub(crate) fn to_c_network_info(info: NetworkNatInfo) -> CNetworkNatInfo {
     let local_udp_ports = info.local_udp_ports.into_boxed_slice();
     let local_udp_ports_len = local_udp_ports.len() as _;
     CNetworkNatInfo {
-        node_ip: CString::new(info.node_ip.to_string())
-            .expect("CString::new failed")
-            .into_raw(),
-        local_ipv4: CString::new(info.local_ipv4.to_string())
-            .expect("CString::new failed")
-            .into_raw(),
+        node_ip: u32::from(info.node_ip),
+        local_ipv4: u32::from(info.local_ipv4),
         ipv6,
         nat_type: CString::new(format!("{:?}", info.nat_type))
             .expect("CString::new failed")
