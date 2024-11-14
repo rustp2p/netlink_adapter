@@ -1,8 +1,8 @@
 #include <cstdarg>
 #include <cstdint>
 #include <cstdlib>
-#include <new>
 #include <ostream>
+#include <new>
 
 struct CConfig {
   bool listen_route;
@@ -51,11 +51,11 @@ struct CGroupItemVec {
 };
 
 struct CNetworkNatInfo {
-  char *node_ip;
-  char *local_ipv4;
+  unsigned int node_ip;
+  unsigned int local_ipv4;
   char *ipv6;
   char *nat_type;
-  char **public_ips;
+  unsigned int *public_ips;
   unsigned int public_ips_len;
   unsigned short *public_udp_ports;
   unsigned int public_udp_ports_len;
@@ -69,10 +69,9 @@ extern "C" {
 
 void initialize_async_runtime();
 
-NetLinkCoreApi *create_netlink_api(CConfig *config);
+NetLinkCoreApi *create_netlink_api(const CConfig *config);
 
-NetLinkCoreApi *create_netlink_api_with_fd(CConfig *config,
-                                           unsigned int tun_fd);
+NetLinkCoreApi *create_netlink_api_with_fd(CConfig *config, unsigned int tun_fd);
 
 void drop_netlink_api(NetLinkCoreApi *api);
 
@@ -90,4 +89,4 @@ void drop_CGroupItemVec(CGroupItemVec *list);
 
 void drop_CNetworkNatInfo(CNetworkNatInfo *p);
 
-} // extern "C"
+}  // extern "C"
