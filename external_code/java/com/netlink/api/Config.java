@@ -7,7 +7,7 @@ import java.util.ArrayList;
  * @date: 2024/11/10
  */
 public class Config {
-    private boolean listenRoute;
+    private boolean listenRoute = true;
     private String configName;
     private int nodeIpv4;
     private byte prefix;
@@ -18,11 +18,11 @@ public class Config {
     private String algorithm;
     private short port;
     private String groupCode;
-    private ArrayList<String> peer;
+    private ArrayList<String> peer = new ArrayList<>();
     private String bindDevName;
     private int exitNode;
-    private ArrayList<String> udpStun;
-    private ArrayList<String> tcpStun;
+    private ArrayList<String> udpStun = new ArrayList<>();
+    private ArrayList<String> tcpStun = new ArrayList<>();
     public native void check();
     public boolean isListenRoute() {
         return listenRoute;
