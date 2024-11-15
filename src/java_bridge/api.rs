@@ -9,11 +9,13 @@ pub mod jni {
     use robusta_jni::jni::errors::{Error, Result as JniResult};
     use robusta_jni::jni::objects::{AutoLocal, JObject};
     use robusta_jni::jni::JNIEnv;
+    use std::sync::Arc;
+    use std::time::Duration;
 
-    use crate::initialize_async_runtime;
     use crate::java_bridge::config::jni::Config;
     use crate::java_bridge::entity::jni::{GroupItem, NetworkNatInfo, RouteItem};
     use crate::java_bridge::utils::async_runtime;
+    use crate::{initialize_async_runtime, LOCK};
     use netlink_core::api::NetLinkCoreApi as Api;
 
     #[derive(Signature, TryIntoJavaValue, IntoJavaValue, TryFromJavaValue)]
@@ -63,17 +65,6 @@ pub mod jni {
             };
             self.set_api(api)
         }
-        fn set_api(&mut self, api: Api) -> JniResult<()> {
-            let raw = Box::into_raw(Box::new(api));
-            match self.api.set(raw as _) {
-                Ok(_) => {}
-                Err(e) => {
-                    _ = unsafe { Box::from_raw(raw) };
-                    Err(e)?
-                }
-            };
-            Ok(())
-        }
 
         #[cfg(unix)]
         pub extern "jni" fn openWithTun(
@@ -93,24 +84,75 @@ pub mod jni {
             };
             self.set_api(api)
         }
-        pub extern "jni" fn close(mut self, _env: &JNIEnv) -> JniResult<()> {
-            if let Ok(api) = self.api.get() {
-                if api != 0 {
-                    self.api.set(0)?;
-                    let raw = api as *mut Api;
+        fn set_api(&mut self, api: Api) -> JniResult<()> {
+            let raw = Box::into_raw(Box::new(Arc::new(api)));
+            match self.api.set(raw as _) {
+                Ok(_) => {}
+                Err(e) => {
                     _ = unsafe { Box::from_raw(raw) };
+                    Err(e)?
                 }
-            }
+            };
             Ok(())
         }
-        fn get(&self) -> JniResult<&Api> {
+        fn get(&self) -> JniResult<&Arc<Api>> {
+            let _guard = LOCK.lock();
             if let Ok(api) = self.api.get() {
-                let raw = unsafe { &*(api as *mut Api) };
+                if api == 0 {
+                    return Err(Error::NullPtr("not open"));
+                }
+                let raw = unsafe { &*(api as *mut Arc<Api>) };
                 Ok(raw)
             } else {
                 Err(Error::NullPtr("not open"))
             }
         }
+        pub extern "jni" fn close(mut self, _env: &JNIEnv) -> JniResult<()> {
+            let guard = LOCK.lock();
+            if let Ok(api) = self.api.get() {
+                if api != 0 {
+                    self.api.set(0)?;
+                    drop(guard);
+                    let raw = api as *mut Arc<Api>;
+                    let api = unsafe { Box::from_raw(raw) };
+                    api.shutdown();
+                }
+            }
+            Ok(())
+        }
+        pub extern "jni" fn isShutdownComplete(self, _env: &JNIEnv) -> JniResult<bool> {
+            if let Ok(api) = self.get() {
+                Ok(api.is_shutdown_completed())
+            } else {
+                Ok(true)
+            }
+        }
+        pub extern "jni" fn waitShutdownComplete(self, _env: &JNIEnv) -> JniResult<()> {
+            let api = self.get()?.clone();
+            let runtime = async_runtime()?;
+            runtime.block_on(async { api.wait_shutdown_complete().await });
+            Ok(())
+        }
+        pub extern "jni" fn waitShutdownCompleteTimeout(
+            self,
+            _env: &JNIEnv,
+            time: i64,
+        ) -> JniResult<bool> {
+            if time <= 0 {
+                Err(Error::ParseFailed(
+                    StringStreamError::UnexpectedParse,
+                    String::from("time <= 0 "),
+                ))?
+            }
+            let api = self.get()?.clone();
+            let runtime = async_runtime()?;
+            let time = Duration::from_millis(time as _);
+            let rs = runtime.block_on(async move {
+                tokio::time::timeout(time, api.wait_shutdown_complete()).await
+            });
+            Ok(rs.is_ok())
+        }
+
         pub extern "jni" fn currentNodes(
             self,
             env: &'borrow JNIEnv<'env>,

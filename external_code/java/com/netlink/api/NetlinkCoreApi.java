@@ -15,7 +15,9 @@ public class NetlinkCoreApi implements Closeable {
      *
      * @param config config
      */
-    public native void open(Config config);
+    public NetlinkCoreApi(Config config) {
+        open(config);
+    }
 
     /**
      * Only supports Unix systems
@@ -23,9 +25,27 @@ public class NetlinkCoreApi implements Closeable {
      * @param config config
      * @param tunFd  tunFd
      */
-    public native void openWithTun(Config config, int tunFd);
+    public NetlinkCoreApi(Config config, int tunFd) {
+        openWithTun(config, tunFd);
+    }
+
+    private native void open(Config config);
+
+    private native void openWithTun(Config config, int tunFd);
 
     public native void close();
+
+    public native boolean isShutdownComplete();
+
+    public native void waitShutdownComplete();
+
+    /**
+     * Waiting to stop
+     *
+     * @param time waiting time (ms)
+     * @return is shutdown complete
+     */
+    public native boolean waitShutdownCompleteTimeout(long time);
 
     public native ArrayList<RouteItem> currentNodes();
 

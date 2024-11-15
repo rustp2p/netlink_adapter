@@ -1,3 +1,4 @@
+use parking_lot::Mutex;
 use std::sync::{Arc, OnceLock};
 use std::thread;
 use tokio::runtime::Runtime;
@@ -8,6 +9,7 @@ pub mod c_bridge;
 pub mod java_bridge;
 
 static RUNTIME: OnceLock<Arc<Runtime>> = OnceLock::new();
+static LOCK: Mutex<()> = Mutex::new(());
 
 pub fn initialize_async_runtime() {
     RUNTIME.get_or_init(|| {
