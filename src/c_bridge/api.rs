@@ -37,7 +37,7 @@ pub extern "C" fn create_netlink_api_with_fd(
     config: *mut CConfig,
     tun_fd: libc::c_uint,
 ) -> *mut NetLinkCoreApi {
-    let config = match unsafe { to_config(&Box::from_raw(config)) } {
+    let config = match unsafe { to_config(&*config) } {
         Ok(config) => config,
         Err(e) => {
             log::warn!("create_api_with_fd to_config {e:?}");
